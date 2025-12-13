@@ -1,0 +1,214 @@
+好的，作為一名資深技術企劃師，我將根據您提供的初步企劃書，並基於對 Pygame 遊戲架構的理解，將其轉化為一份「可被系統執行」的企業級技術企劃書。
+
+---
+
+# 經典棒球對決 - 企業級技術企劃書
+
+## 1. Game Overview
+
+*   **遊戲名稱**: 經典棒球對決
+*   **核心玩法簡述**:
+    「經典棒球對決」是一款以棒球運動中核心的「投打對決」為主題的模擬競技遊戲。玩家將沉浸於投手與打者之間鬥智鬥力的關鍵時刻。遊戲提供兩種核心模式：
+    1.  **投球模式**: 玩家扮演投手，需策略性地選擇多種球路（如快速球、變化球、滑球等），並精準控制投球區域，以智取電腦AI打者，力求三振或製造出局。
+    2.  **打擊模式**: 玩家扮演打者，需高度專注於判斷來球的時機、速度與軌跡，精準揮棒擊球，以追求安打、長打乃至於全壘打，突破電腦AI投手的防線。
+    遊戲完整參照現實世界的棒球規則，透過即時記分板、詳細的規則說明，以及可自定義的自動化守備與跑壘機制，讓玩家能將注意力完全集中在體驗純粹的投打樂趣上。
+
+## 2. Technical Architecture
+
+**重要提示**: 由於使用者提供的「系統能力清單 (System Manifest)」為空，以下模組清單是基於對 Pygame 遊戲開發常見組件的合理假設。以下模組將被視為現有或需從頭開發，以支撐「經典棒球對決」的遊戲邏輯與表現。
+
+以下為「經典棒球對決」遊戲所需載入或開發的關鍵技術模組：
+
+*   `- [Load] InputManager`: 用於捕捉和解析玩家的所有輸入，包括鍵盤、滑鼠事件。在投球模式下處理球種選擇、投球瞄準區調整和投球動作確認；在打擊模式下處理揮棒時機、方向和力量輸入。
+*   `- [Load] SpriteRenderer`: 負責遊戲中所有2D視覺元素的繪製，包括遊戲背景（棒球場）、球員角色（投手、打者、跑者、守備員）的靜態圖像或動畫幀、棒球、UI元素文字與圖標。該模組需高效處理圖像載入、縮放和位置更新。
+*   `- [Load] AnimationSystem`: 管理遊戲中各個實體的動畫播放。它將處理投手的投球準備、投球、捕手接球動畫；打者的揮棒、擊球、跑壘動畫；以及棒球的旋轉和各種擊球特效動畫序列。
+*   `- [Load] CollisionManager`: 專責遊戲內所有碰撞事件的檢測與處理。主要用於：
+    *   **球棒與棒球碰撞**: 判定擊球成功與否、擊球點、擊球力量。
+    *   **棒球與地面/牆壁碰撞**: 處理球的彈跳物理。
+    *   **棒球與守備員碰撞**: 判定守備員是否成功接殺或攔截球。
+    *   （可擴展）**跑者與壘包碰撞**: 判定跑者是否安全上壘或回本壘。
+*   `- [Load] SceneManager`: 管理遊戲不同畫面或階段的切換與生命週期。負責載入、卸載和初始化不同的遊戲場景，例如：主選單、遊戲模式選擇、遊戲進行中、規則說明、遊戲結束畫面等。
+*   `- [Load] UISystem`: 用於構建和管理遊戲中的所有用戶介面 (UI)。包括：實時記分板（顯示比分、局數、好壞球/出局數）、模式切換按鈕、暫停選單、詳細的棒球規則說明介面、投球選擇介面、投球瞄準器、揮棒時機指示器等。
+*   `- [Load] SoundManager`: 負責遊戲內所有音效和背景音樂的播放、管理和音量控制。包括擊球聲、裁判喊話、觀眾歡呼聲、球落地聲、特效音、勝利/失敗音樂等，以提升遊戲的聽覺沉浸感。
+*   `- [Load] ObjectPool`: 實作物件池模式，用於高效管理和重用遊戲中頻繁創建和銷毀的物件，以減少記憶體分配和垃圾回收的開銷。常見應用於：擊出後的棒球實體、粒子特效（如擊球火花、揚塵）、UI 元素等。
+*   `- [Load] StateMachine`:
+    *   **全局遊戲狀態機**: 管理遊戲的頂層流程，如：`MainMenuState` -> `GameLobbyState` -> `PlayGameState` -> `GameOverState`。
+    *   **實體行為狀態機**: 管理玩家和 AI 角色的複雜行為模式，例如：
+        *   **投手**: `Idle` -> `Windup` -> `Pitching` -> `Recovery`。
+        *   **打者**: `Waiting` -> `JudgingPitch` -> `Swinging` -> `Running`。
+        *   **棒球**: `InFlight` -> `HitGround` -> `Caught` -> `Foul`。
+*   `- [Load] EventManager`: 提供一套強健的發布/訂閱機制，用於處理遊戲內部模組間的通訊和狀態變化。例如，當好球/壞球判定時，發布事件通知 `UISystem` 更新顯示；當擊球結果確定時，通知 `AIManager` 調整防守策略或 `PhysicsComponent` 更新球的狀態。
+*   `- [Load] GameTimer`: 提供遊戲內部的精確計時功能，用於控制各種時間相關的遊戲邏輯。例如，投球動畫的精準時機、打者揮棒的有效時間窗口、棒球飛行時間計算、AI決策的延遲、遊戲局間暫停等。
+*   `- [Load] AIManager`: 專門設計和管理電腦控制的遊戲角色行為。包括：
+    *   **AI 投手**: 根據比分、好壞球數、局數等情境動態選擇球種和投球區域。模擬投球精準度。
+    *   **AI 打者**: 根據來球速度、軌跡和球種判斷揮棒時機、擊球方向和力量。
+    *   **AI 守備與跑壘**: 基本的自動守備跑位、接球判斷；跑者的起跑、加速、滑壘決策。
+*   `- [Load] ParticleSystem`: 用於生成並管理遊戲中的視覺特效，以增強視覺回饋。例如，擊出全壘打時的爆炸火花、棒球擊中地面揚起的塵土、擊中球棒的瞬間火花、揮棒殘影等。
+
+*   `- [New Logic] PhysicsComponent`: 由於 Pygame 本身不提供複雜的物理引擎，此組件需要從頭撰寫。它將基於牛頓運動定律和向量物理，模擬棒球的運動軌跡、速度和旋轉。
+    *   **棒球飛行模擬**: 考慮重力、空氣阻力，以及球種所帶來的馬格努斯效應 (Magnus effect)，以精確模擬快速球、變化球、滑球等的真實軌跡。
+    *   **碰撞響應**: 處理棒球與球棒、地面、牆壁等碰撞後的反彈速度和角度計算，模擬動量傳遞。
+    *   **時間步進**: 以固定或變化的時間步長，在每個遊戲幀中更新所有受物理影響的實體狀態。
+
+## 3. Game Rules & Logic
+
+遊戲狀態流程將嚴格遵循棒球比賽的實際規則，並以有限狀態機 (`StateMachine`) 進行管理，確保遊戲流程的穩定性和可預測性。
+
+1.  **MainMenuState (主選單狀態)**
+    *   **進入**: 遊戲啟動時的初始狀態。顯示遊戲標題、背景音樂、主要操作按鈕（如「開始遊戲」、「規則說明」、「離開遊戲」）。
+    *   **更新**: 偵測玩家輸入。
+    *   **事件觸發/離開**:
+        *   玩家點擊「開始遊戲」按鈕 -> 切換至 `GameLobbyState`。
+        *   玩家點擊「規則說明」按鈕 -> 切換至 `RulesDisplayState`。
+        *   玩家點擊「離開遊戲」按鈕 -> 發送退出事件，結束應用程式。
+
+2.  **RulesDisplayState (規則說明狀態)**
+    *   **進入**: 載入並顯示詳細的棒球規則文字、圖解及操作說明。
+    *   **更新**: 偵測玩家輸入（如滾動、返回）。
+    *   **事件觸發/離開**:
+        *   玩家點擊「返回」按鈕 -> 切換至 `MainMenuState`。
+
+3.  **GameLobbyState (遊戲準備狀態)**
+    *   **進入**: 顯示遊戲設定介面。玩家可在此選擇：
+        *   **扮演角色**: 玩家選擇作為「打者」或「投手」。
+        *   **遊戲選項**: 設定遊戲局數（如3局、9局）、守備與跑壘的自動/半自動控制、難度等級等。
+        *   **球隊選擇**: （可選）選擇主客隊。
+    *   **更新**: 根據玩家輸入更新設定選項。
+    *   **事件觸發/離開**:
+        *   玩家確認設定後點擊「開始比賽」按鈕 -> 將所選設定傳遞給 `PlayGameState`，並切換至 `PlayGameState`。
+
+4.  **PlayGameState (遊戲進行狀態)**
+    *   **進入**:
+        *   **初始化遊戲數據**:
+            *   `CurrentInning = 1`, `IsTopHalf = True` (1局上半)。
+            *   `HomeScore = 0`, `AwayScore = 0`。
+            *   `Balls = 0`, `Strikes = 0`, `Outs = 0`。
+            *   `RunnersOnBase` 清空，所有壘包無跑者。
+            *   根據 `GameLobbyState` 的選擇，設定玩家當前角色 (`GameMode`)。
+        *   **場景與UI載入**:
+            *   `SpriteRenderer` 載入棒球場景背景、球員精靈。
+            *   `UISystem` 初始化並渲染實時記分板、好壞球/出局數顯示、壘上跑者狀態指示。
+        *   **AIManager 準備**: 依據玩家角色，初始化 AI 投手或 AI 打者。
+    *   **核心循環 (Main Game Loop)**: 此狀態將執行遊戲的實時邏輯。
+        *   **局數循環 (Inning Loop)**: 從第1局開始，直到比賽結束條件達成。
+            *   **上半局 (Top Half of Inning)**:
+                *   設定攻守雙方：玩家當前扮演打者，AI 扮演投手。
+                *   **打席循環 (At-Bat Loop)**: 從0好0壞0出局開始，直到打者出局或上壘。
+                    *   `AIManager` 控制 AI 投手：根據策略選擇球種 (`PitchType`) 和投球目標區域 (`PitchTargetArea`)。
+                    *   `PhysicsComponent` 模擬棒球的飛行軌跡，從投手丘飛向本壘板。
+                    *   玩家通過 `InputManager` 判斷來球時機，按下揮棒按鈕。
+                    *   `CollisionManager` 檢測球棒與棒球的碰撞。
+                    *   **結果判定 (Outcome Adjudication)**:
+                        *   **空振 / 未揮棒且好球區**: `Strikes` +1。
+                        *   **空振 / 未揮棒且壞球區**: `Balls` +1。
+                        *   **界外球 (Foul Ball)**: `Strikes` +1 (但若已2好球則不追加好球數)。
+                        *   **擊中球 (Hit Ball)**:
+                            *   `PhysicsComponent` 計算擊球後的棒球飛行軌跡。
+                            *   `AIManager` 控制 AI 守備員進行移動和接殺判斷。
+                            *   根據球落地位置、球速、守備員反應：
+                                *   **飛球接殺**: 打者出局 (`Outs` +1)。
+                                *   **滾地球**: `AIManager` 判斷傳球與封殺、觸殺。
+                                *   **安打**: 根據球落地位置和守備結果，判定為一壘安打、二壘安打、三壘安打。
+                                *   **全壘打 (Home Run)**: 球飛出全壘打牆外，所有壘上跑者及打者安全回本壘得分。
+                    *   **規則處理 (`EventManager` 監聽與觸發)**:
+                        *   **三振**: 3 個好球 -> 打者出局 (`Outs` +1)。
+                        *   **四壞球**: 4 個壞球 -> 打者保送上一壘。
+                        *   **死球**: 觸身球等 -> 打者保送上一壘。
+                        *   **出局**: 飛球接殺、觸殺、封殺 -> `Outs` +1。
+                        *   **得分**: 跑者安全回到本壘 -> `AwayScore` +1。
+                        *   **壘包更新**: 根據擊球結果和跑者行動，`RunnersOnBase` 狀態更新。
+                *   **上半局結束**: 當 `Outs` 達到 3 個時，重置 `Balls = 0`, `Strikes = 0`，清空壘包，切換 `IsTopHalf = False`，進入下半局。
+            *   **下半局 (Bottom Half of Inning)**:
+                *   設定攻守雙方：玩家當前扮演投手，AI 扮演打者。
+                *   **打席循環 (At-Bat Loop)**: 從0好0壞0出局開始，直到打者出局或上壘。
+                    *   玩家通過 `InputManager` 選擇球種和投球目標區域，執行投球。
+                    *   `PhysicsComponent` 模擬棒球的飛行軌跡。
+                    *   `AIManager` 控制 AI 打者判斷來球時機並揮棒。
+                    *   `CollisionManager` 檢測球棒與棒球的碰撞。
+                    *   **結果判定 (Outcome Adjudication)**: 同上半局。
+                    *   **規則處理 (`EventManager` 監聽與觸發)**: 同上半局，得分則 `HomeScore` +1。
+                *   **下半局結束**: 當 `Outs` 達到 3 個時，重置 `Balls = 0`, `Strikes = 0`，清空壘包，切換 `IsTopHalf = True`，進入下一局。
+            *   **局間處理**: `UISystem` 更新記分板，清理場地，準備進入下一局。
+        *   **比賽結束判定**:
+            *   達到預設局數（如 9 局）且其中一方比分領先。
+            *   若 9 局結束比分平手，進入延長賽 (額外局數)。
+            *   若下半局結束時主隊領先，則無需進行剩餘打席（主隊獲勝）。
+            *   若觸發提前結束機制（如規定局數後分數差距過大，如七局結束領先十分）。
+    *   **事件觸發/離開**:
+        *   比賽結束條件達成 -> 切換至 `GameOverState`。
+        *   玩家點擊暫停或退出 -> 可切換至 `PauseMenuState` 或 `MainMenuState`。
+
+5.  **GameOverState (遊戲結束狀態)**
+    *   **進入**: 顯示最終比分、比賽勝負結果、以及其他統計數據（如 MVP、安打數、三振數）。
+    *   **更新**: 偵測玩家輸入。
+    *   **事件觸發/離開**:
+        *   玩家點擊「返回主選單」按鈕 -> 切換至 `MainMenuState`。
+        *   玩家點擊「重新遊戲」按鈕 -> (可選) 切換至 `GameLobbyState`，開始新一局遊戲。
+
+## 4. Entities & Values
+
+以下定義遊戲中主要實體及其關鍵屬性與預設數值，以提供系統開發的具體依據。
+
+*   **Player (玩家角色 - 可扮演投手或打者)**
+    *   `Role`: `Enum` (`BATTER`, `PITCHER`) - 當前玩家扮演的角色。
+    *   `Stamina`: `float` (初始值 `100.0`, 範圍 `0.0 - 100.0`) - 體力值，影響投球力量、控球穩定性及打擊精準度，隨遊戲進行消耗。
+    *   `FatigueEffect`: `float` (範圍 `0.0 - 1.0`, `0.0`為無疲勞) - 疲勞係數，根據 `Stamina` 計算，作為其他基礎能力值的乘數。
+    *   `CurrentAnimationState`: `Enum` (`IDLE`, `WINDUP`, `PITCHING`, `SWINGING`, `RUNNING`, `FIELDING`, `CELEBRATING`) - `AnimationSystem` 用於播放正確動畫。
+    *   `Team`: `Enum` (`HOME`, `AWAY`) - 所屬隊伍。
+    *   `Position`: `Vector2` - 球員在場上的坐標。
+    *   `RunningSpeedBase`: `float` = `200.0` (像素/秒) - 跑壘基礎速度。
+
+    *   **投手角色獨有屬性**:
+        *   `PitchingPower`: `float` (範圍 `0.0 - 1.0`) - 影響投球速度和球的尾勁，與 `FastballSpeedBase` 相乘。
+        *   `PitchingAccuracy`: `float` (範圍 `0.0 - 1.0`) - 影響投球命中目標區域的精準度，越高投球誤差越小。
+        *   `FastballSpeedBase`: `float` = `300.0` (像素/秒) - 快速球基礎初速度。
+        *   `CurveballBreak`: `float` = `0.8` (彎曲幅度係數) - 變化球的垂直與水平變化幅度強度。
+        *   `SliderMovement`: `float` = `0.6` (位移係數) - 滑球的橫向位移效果強度。
+        *   `ChangeupDeception`: `float` = `0.7` (欺騙性係數) - 變速球與快速球的速度差異程度，影響打者判斷。
+        *   `PitchRateLimit`: `float` = `0.8` (秒) - 每次投球的最小時間間隔，防止玩家過快操作。
+        *   `AvailablePitches`: `List<Enum(FASTBALL, CURVEBALL, SLIDER, CHANGEUP, etc.)>` - 投手可用的球種列表。
+
+    *   **打者角色獨有屬性**:
+        *   `BattingPower`: `float` (範圍 `0.0 - 1.0`) - 影響擊球後的初速度和飛行距離，與 `Baseball` 的 `InitialVelocity` 計算相關。
+        *   `BattingTimingWindow`: `float` = `0.15` (秒) - 玩家/AI判斷完美擊中球的有效時間窗口。
+        *   `ContactAbility`: `float` (範圍 `0.0 - 1.0`) - 影響擊中球的判定範圍與容錯率，越高則擊中判定更寬鬆。
+        *   `EyeSight`: `float` (範圍 `0.0 - 1.0`) - 判斷好壞球的精準度，影響 AI 打者或玩家的建議提示。
+
+*   **Baseball (棒球)**
+    *   `Position`: `Vector2` (x, y) - 球的當前世界坐標。
+    *   `Velocity`: `Vector2` (vx, vy) - 球的當前速度向量 (像素/秒)。
+    *   `Acceleration`: `Vector2` (ax, ay) - 球的當前加速度向量 (像素/秒²)，受重力、空氣阻力、旋轉力影響。
+    *   `Radius`: `float` = `10.0` (像素) - 球的碰撞半徑，用於 `CollisionManager`。
+    *   `Mass`: `float` = `0.145` (公斤) - 球的質量，用於 `PhysicsComponent` 的物理計算。
+    *   `SpinMagnitude`: `float` - 球的旋轉強度，影響 `PhysicsComponent` 的馬格努斯效應計算，決定變化球軌跡。
+    *   `Type`: `Enum` (`FASTBALL`, `CURVEBALL`, `SLIDER`, `CHANGEUP`, `SINKER`, etc.) - 當前球的球種。
+    *   `State`: `Enum` (`IN_FLIGHT`, `GROUNDED`, `CAUGHT`, `FOUL`, `STRIKE_ZONE`, `BALL_ZONE`, `HOME_RUN`) - 球的生命週期狀態，用於 `StateMachine`。
+    *   `InitialVelocity`: `Vector2` - 投出時的初始速度。
+    *   `GravityEffect`: `float` = `9.8` (像素/秒²) - 模擬重力加速度。
+    *   `AirResistanceCoefficient`: `float` = `0.0001` - 空氣阻力係數。
+
+*   **Game State (遊戲全局狀態)**
+    *   `CurrentInning`: `int` (範圍 `1-9` 或更高) - 當前比賽局數。
+    *   `IsTopHalf`: `bool` - `True` 為上半局，`False` 為下半局。
+    *   `HomeScore`: `int` - 主隊得分。
+    *   `AwayScore`: `int` - 客隊得分。
+    *   `Balls`: `int` (範圍 `0-3`) - 當前打席壞球數。
+    *   `Strikes`: `int` (範圍 `0-2`) - 當前打席好球數。
+    *   `Outs`: `int` (範圍 `0-2`) - 當前半局出局數。
+    *   `RunnersOnBase`: `Dictionary<BaseEnum, PlayerID or None>` (Key: `FIRST`, `SECOND`, `THIRD`) - 壘上跑者狀態，`None` 表示無人。
+    *   `CurrentBatterID`: `int` - 當前打席的打者ID。
+    *   `CurrentPitcherID`: `int` - 當前投手的ID。
+    *   `PitchTargetArea`: `Rect` - 玩家/AI選擇的投球目標區域（屏幕坐標），用於視覺回饋和精準度判斷。
+    *   `GameMode`: `Enum` (`PITCHING_MODE`, `BATTING_MODE`) - 玩家當前扮演的模式。
+    *   `GameDuration`: `int` (預設 `9` 局) - 設定的遊戲總局數。
+    *   `IsGameOver`: `bool` - 標誌遊戲是否結束。
+
+*   **UI Elements (介面元素數據)**
+    *   `ScoreboardData`: `{ 'HomeScore': int, 'AwayScore': int, 'Inning': int, 'IsTopHalf': bool }` - 記分板顯示數據。
+    *   `CountDisplayData`: `{ 'Balls': int, 'Strikes': int, 'Outs': int }` - 好壞球/出局數顯示數據。
+    *   `RunnerDisplayData`: `{ 'FirstBaseOccupied': bool, 'SecondBaseOccupied': bool, 'ThirdBaseOccupied': bool }` - 壘上跑者顯示數據。
+    *   `PitchSelectionUI`: 儲存可選擇的球種列表及其圖標/文字，用於玩家投球選擇介面。
+    *   `PitchTargetUI`: 用於在屏幕上繪製投球目標區域的視覺標示，提供玩家瞄準反饋。
+    *   `SwingTimingIndicator`: `float` (範圍 `0.0 - 1.0`) - 打擊時機指示器的當前進度。
+
+---
