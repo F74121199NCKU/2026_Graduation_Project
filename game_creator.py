@@ -4,18 +4,23 @@ import sys
 import subprocess
 import os
 import re
+import chromadb                         
+from chromadb.utils import embedding_functions  
 
 #設定 API Key
 api_key_user = input("Please enter your own Google Gemini API Key: ").strip()
 genai.configure(api_key = api_key_user)
+EMBEDDING_MODEL = "models/text-embedding-004"   #RAG model
 
 #model types
+#後續若有更好的模型會從這邊替代，暫時使用相同的
 MODEL_FAST = 'models/gemini-2.5-flash'
 MODEL_SMART = 'models/gemini-2.5-flash'
 MODEL_CREATIVE = 'models/gemini-2.5-flash'
 MODEL_VISION = 'models/gemini-2.5-flash'
 
 #安全設定
+#目前先開放，避免無法生成，後續微調時可修改
 safety_settings = [
     { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
     { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -90,6 +95,128 @@ def clean_code(raw_text: str) -> str:
     clean_text = re.sub(r'```$', '', clean_text)          
     return clean_text.strip()
 
+def select_relevant_modules(user_query: str) -> str:
+    """
+    第一階段：讓 LLM 根據需求，從現有檔案列表中挑選出可能需要的模組。
+    這能大幅增加 RAG 的準確度 (Query Expansion)。
+    """
+    folder_path = "reference_modules"
+    if not os.path.exists(folder_path):
+        return ""
+
+    # 1. 獲取所有現有的模組檔名
+    # 我們不讀內容，只讀檔名，這樣省 Token 又快速
+    available_files = [f for f in os.listdir(folder_path) if f.endswith(".py")]
+    files_str = ", ".join(available_files)
+    
+    print(f"🤔 正在分析需求，思考需要哪些模組 (候選名單: {len(available_files)} 個)...")
+
+    # 2. 詢問 LLM (使用快速模型即可)
+    model = genai.GenerativeModel('models/gemini-2.5-flash')
+    
+    prompt = (
+        "你是一個 Python 遊戲開發的技術選型專家。"
+        f"目前我們的儲存庫中有以下模組檔案：[{files_str}]。"
+        f"使用者的需求是：'{user_query}'。"
+        
+        "【任務】"
+        "請判斷為了完成這個需求，我們**必須**或**強烈建議**使用哪些模組？"
+        "請只列出檔名，用逗號分隔。"
+        "如果不確定或都不需要，請回答 'NONE'。"
+        
+        "【範例輸出】"
+        "camera_scroll.py, object_pool.py"
+    )
+
+    try:
+        response = model.generate_content(prompt)
+        selected = response.text.strip()
+        
+        if "NONE" in selected:
+            print("   -> 分析結果：無需特定模組。")
+            return ""
+        else:
+            print(f"   -> 💡 專家建議使用: {selected}")
+            return selected
+            
+    except Exception as e:
+        print(f"❌ 選型分析失敗: {e}")
+        return ""
+
+# --- RAG 核心功能 (加強版) ---
+def get_rag_context(user_query: str) -> str:
+    # 1. 先執行模組挑選 (Query Expansion)
+    suggested_modules = select_relevant_modules(user_query)
+    
+    # 2. 組合新的搜尋語句
+    # 原本: "我要一個薩爾達遊戲"
+    # 現在: "我要一個薩爾達遊戲 建議參考: camera_scroll.py, object_pool.py"
+    # 這樣向量搜尋時，就會強烈偏向這些檔案！
+    enhanced_query = user_query
+    if suggested_modules:
+        enhanced_query = f"{user_query}. Strictly use these modules: {suggested_modules}"
+    
+    print(f"🔍 RAG 系統啟動：正在搜尋資料庫...")
+    # print(f"   (內部搜尋語句: {enhanced_query})") # 除錯用
+    
+    try:
+        chroma_client = chromadb.PersistentClient(path="./chroma_db")
+        collection = chroma_client.get_collection(name="game_modules")
+        
+        # 3. 生成向量 (使用加強後的語句)
+        result = genai.embed_content(
+            model=EMBEDDING_MODEL,
+            content=enhanced_query,
+            task_type="retrieval_query"
+        )
+        query_embedding = result['embedding']
+        
+        # 4. 搜尋 (維持之前的邏輯)
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=5, 
+            include=['documents', 'distances'] 
+        )
+        
+        DISTANCE_THRESHOLD = 1.0
+        found_contents = []
+        
+        if results['documents']:
+            num_results = len(results['documents'][0])
+            for i in range(num_results):
+                doc_content = results['documents'][0][i]
+                doc_id = results['ids'][0][i]
+                distance = results['distances'][0][i]
+                
+                # 這裡加一個額外權重：如果是專家建議的檔案，我們無條件放寬門檻！
+                # 這樣能確保 LLM 點名的檔案一定會被抓進來
+                final_threshold = DISTANCE_THRESHOLD
+                if suggested_modules and doc_id in suggested_modules:
+                    final_threshold = 1.5 # 放寬門檻
+                    print(f"   -> 必選檔案發現: {doc_id} (門檻放寬至 1.5)")
+
+                print(f"   -> 候選檔案: {doc_id:<20} | 距離: {distance:.4f}", end="")
+                
+                if distance < final_threshold:
+                    print(" ✅ 採用")
+                    formatted_doc = (
+                        f"\n\n# ====== Reference Module: {doc_id} ======\n"
+                        f"{doc_content}\n"
+                        f"# ============================================\n"
+                    )
+                    found_contents.append(formatted_doc)
+                else:
+                    print(" ❌ 捨棄")
+
+        if found_contents:
+            return "".join(found_contents)
+        else:
+            return ""
+            
+    except Exception as e:
+        print(f"❌ RAG 檢索失敗: {e}")
+        return ""
+    
 #優化提示詞與安全檢測
 def complete_prompt(user_prompt: str) -> str:
     print("🛡️ 正在進行輸入安全檢查與優化...")
@@ -131,61 +258,33 @@ def complete_prompt(user_prompt: str) -> str:
 
 # 遊戲程式碼生成  
 def generate_py(user_prompt) -> str:
-    print(f"🔄 正在撰寫程式")
+    # 1. 先去資料庫撈程式碼 (RAG 步驟)
+    rag_context = get_rag_context(user_prompt)
     
-    #遊戲企劃師
+    # 2. 遊戲企劃師 (將 RAG 資料餵給它)
     system_instruction_planner = (
-        "你是一個精通 Python Pygame 的資深技術企劃師 (Technical Game Designer)。"
-        #"你的任務是將使用者的模糊需求，轉化為一份「可被 RAG 系統執行」的技術企劃書。"
-        "你的任務是將**用戶所提出的不夠詳盡的需求**，轉化為一份「可被系統執行」的企業級技術企劃書。"
-        "【輸入資訊】"
-        "1. 使用者需求 (User Request)"
-        "2. 系統能力清單 (System Manifest): 這是一份 JSON，列出了我們現有的程式模組 (如 ObjectPool, ShootingComponent)。"
+        "你是一個精通 Python Pygame 的資深技術企劃師。"
+        "你的任務是根據「使用者需求」與「現有的參考程式碼 (Reference Code)」，規劃一份技術企劃書。"
+        
+        f"\n\n【現有參考程式碼 (Reference Modules)】\n{rag_context}\n\n"
         
         "【企劃書輸出要求】"
-        "請輸出 Markdown 格式，必須包含以下章節："
-        "1. **Game Overview**: 遊戲名稱與核心玩法簡述。"
-        "2. **Technical Architecture (關鍵)**: "
-        "   - 請根據 System Manifest，明確列出此遊戲需要載入哪些模組？"
-        "   - 格式範例: '- [Load] ShootingComponent: 用於玩家發射子彈'"
-        "   - 格式範例: '- [Load] SpatialGrid: 用於大量敵人碰撞優化'"
-        "3. **Game Rules & Logic**: 詳細描述狀態流程 (State Flow: Menu -> Play -> GameOver)。"
-        "4. **Entities & Values**: 定義角色數值 (如 Player Speed = 300, Fire Rate = 0.2)。"
+        "1. **Technical Architecture**: 你必須明確指出要如何使用上述的 Reference Modules。"
+        "   - 例如: '使用 ObjectPool 來管理子彈，減少記憶體消耗'。"
+        "   - 例如: '所有角色繼承 sprite_manager.GameSprite'。"
+        "2. **Game Rules**: 描述遊戲流程。"
+        "3. **Entities**: 定義數值。"
         
-        "【思考限制】"
-        "不要天馬行空地幻想不存在的功能。盡量利用 Manifest 中已有的組件來組合遊戲。"
-        "如果 Manifest 中沒有適合的組件，才允許描述需要從頭撰寫的邏輯。"
+        "【限制】"
+        "如果上述參考程式碼是空的，就依照你的通用知識規劃。"
     )
-    model_planner = genai.GenerativeModel(MODEL_CREATIVE)
-    response_planner = model_planner.generate_content(f"{system_instruction_planner}\n\n使用者需求: {user_prompt}",
-                                              safety_settings = safety_settings)
-    print("✅ 企劃書1已生成完畢。")
-
-    system_instruction_planner = (
-        "你是一個精通 Python Pygame 的資深技術企劃師 (Technical Game Designer)。"
-        #"你的任務是將初步計劃書不夠詳盡的需求，轉化為一份「可被 RAG 系統執行」的企業級技術企劃書。"
-        "你的任務是將 **初步計劃書延伸，使其更詳盡**，並且是「可被系統執行」的企業級技術企劃書。"
-        "【輸入資訊】"
-        "1. 使用者需求 (User Request)"
-        "2. 系統能力清單 (System Manifest): 這是一份 JSON，列出了我們現有的程式模組 (如 ObjectPool, ShootingComponent)。"
-        
-        "【企劃書輸出要求】"
-        "請輸出 Markdown 格式，必須包含以下章節："
-        "1. **Game Overview**: 遊戲名稱與核心玩法簡述。"
-        "2. **Technical Architecture (關鍵)**: "
-        "   - 請根據 System Manifest，明確列出此遊戲需要載入哪些模組？"
-        "   - 格式範例: '- [Load] ShootingComponent: 用於玩家發射子彈'"
-        "   - 格式範例: '- [Load] SpatialGrid: 用於大量敵人碰撞優化'"
-        "3. **Game Rules & Logic**: 詳細描述狀態流程 (State Flow: Menu -> Play -> GameOver)。"
-        "4. **Entities & Values**: 定義角色數值 (如 Player Speed = 300, Fire Rate = 0.2)。"
-        
-        "【思考限制】"
-        "不要天馬行空地幻想不存在的功能。盡量利用 Manifest 中已有的組件來組合遊戲。"
-        "如果 Manifest 中沒有適合的組件，才允許描述需要從頭撰寫的邏輯。"
+    
+    model_planner = genai.GenerativeModel('models/gemini-2.5-flash') # 這裡我幫你統一模型變數，避免錯誤
+    response_planner = model_planner.generate_content(
+        f"{system_instruction_planner}\n\n使用者需求: {user_prompt}",
+        safety_settings=safety_settings
     )
-    response_planner = model_planner.generate_content(f"{system_instruction_planner}\n\n初步企劃書: {response_planner.text}",
-                                              safety_settings = safety_settings)
-    print("✅ 企劃書2已生成完畢。")
+    print("✅ 企劃書已生成完畢。")
 
     folder = "dest"
     filename = "game_design_document.txt"
@@ -194,45 +293,39 @@ def generate_py(user_prompt) -> str:
     with open(filename, "w", encoding="utf-8") as f:
         f.write(response_planner.text)
 
-    #遊戲工程師
+    # 3. 遊戲工程師 (強制它使用 RAG 的 Code)
     system_instruction_designer = (
-        "你是一個資深的 Python 遊戲架構師 (Architect)。你的任務是根據企劃書，"
-        "撰寫一個高品質、高效能的 Pygame 單一執行檔。"
+        "你是一個資深的 Python 遊戲架構師。"
+        "你的任務是根據企劃書，撰寫一個單一檔案的 Pygame 遊戲。"
         
-        #"【RAG 核心指令 - 絕對遵守】"
-        #"1. 我會提供你數個 'Reference Modules' (參考模組)，其中包含核心引擎、物件池等實作。"
-        #"2. 你必須將這些模組的 Class 整合進最終程式碼中，**嚴禁修改參考模組的核心邏輯**。"
-        #"3. 你只能在具體的遊戲邏輯 (如 class Enemy(Sprite)) 中繼承或呼叫這些模組。"
+        "【RAG 強制規範 - 絕對遵守】"
+        f"我已讀取了內部的參考模組，內容如下：\n{rag_context}\n"
+        "1. **你必須直接將上述參考模組的 Class (如 ObjectPool, GameSprite) 包含在你的最終程式碼中**。"
+        "2. 嚴禁修改這些參考模組的核心邏輯（例如不要改寫 ObjectPool 的 __init__）。"
+        "3. 在實作遊戲邏輯時，必須繼承或呼叫這些模組。"
+        "   - 正確: class Player(GameSprite): ..."
+        "   - 正確: self.bullet_pool = ObjectPool(Bullet)"
         
-        "【架構與設計模式規範】"
-        "1. **Game Loop:** 嚴格遵守 'Update (Logic) -> Draw (Render)' 分離原則。所有移動必須乘上 `dt` (Delta Time)。"
-        "2. **Object Pool:** 若遊戲涉及頻繁生成的物件（如子彈、粒子），必須使用提供的 GenericObjectPool，嚴禁使用 `new Bullet()`。"
-        "3. **Event System:** 使用觀察者模式 (Observer Pattern) 或簡單的 Callback 處理跨物件溝通（例如：玩家死亡通知 UI），避免在 Player 類別中直接 import UI。"
-        "4. **State Machine:** 使用 Enum 與字典映射 (Dict Mapping) 來管理遊戲狀態 (MENU, PLAYING, GAME_OVER)，嚴禁在主迴圈寫巨大的 if-else 巢狀結構。"
-        "5. **Object-Oriented Programming:** 使用 Class 與繼承來組織遊戲物件，避免大量的全域變數與函式。"
-
-        "【效能優化規範 (Hard Constraints)】"
-        "1. **Vector2:** 所有座標與速度計算必須使用 `pygame.math.Vector2`。"
-        "2. **Spatial Partitioning:** 若同畫面物件超過 50 個，必須實作簡單的網格 (Spatial Grid) 或只對視窗內的物件進行碰撞檢查。"
-        "3. **Rendering:** 載入圖片務必使用 `.convert()` 或 `.convert_alpha()`。"
-        
-        "【輸出格式規範】"
-        "1. 輸出為單一 Python 檔案，包含所有 import。"
-        "2. 不要在代碼塊外輸出任何文字、解釋或 Markdown 標記 (如 ```python)。"
-        "3. 確保包含 `if __name__ == '__main__':` 區塊。"
-        "4. 必須包含一個基於 GUI (pygame_gui 或自行繪製) 的規則說明頁面，按任意鍵開始遊戲。"
+        "【一般規範】"
+        "1. 完整的單一檔案，包含 `import pygame`。"
+        "2. 使用 `pygame.math.Vector2` 處理座標。"
+        "3. 確保包含 `if __name__ == '__main__':`。"
+        "4. 不要輸出 Markdown 標記。"
     )
     
-    model_designer = genai.GenerativeModel(MODEL_SMART)
-    response_designer = model_designer.generate_content(f"{system_instruction_designer}\n\n企劃書: {response_planner.text}",
-                                               safety_settings = safety_settings)
+    model_designer = genai.GenerativeModel('models/gemini-2.5-flash')
+    response_designer = model_designer.generate_content(
+        f"{system_instruction_designer}\n\n企劃書: {response_planner.text}",
+        safety_settings=safety_settings
+    )
+    
     if not response_designer.text:
         print("❌ 程式碼生成失敗，請稍後再試。")
         sys.exit(1)
+        
     code_content = loop_game_generate(response_designer.text, response_planner.text)
-    
-    # 清理可能殘留的 Markdown 標記
     code_content = clean_code(code_content)
+    
     print("✅ 程式碼已生成完畢。")
 
     #遊戲偵錯師
