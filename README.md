@@ -9,15 +9,17 @@ Project/
 │
 ├── 📂 __pycache__/            # 存放 Python 編譯後的快取檔 (系統自動生成)
 ├── 📂 chroma_db/              # 向量搜尋庫 (儲存 RAG 所需的數據)
-├── 📂 Debug/                  # 偵測遊戲區
+├── 📂 rag_system/             # 偵測遊戲區
 |   ├── __init__.py            # Python 套件識別檔
 │   └── core.py                # 負責搜尋與篩選模組的主要程式
+|   └── update_catalog.py      # 生成RAG modules的JSON格式檔(catalog.json)
+|   └── catalog.json           # JSON格式檔
 |
-├── 📂 rag_system/               # [核心邏輯] RAG 檢索系統 (我寫的)
+├── 📂 Debug/                   # 負責對生成出來的遊戲debug
 │   ├──  executor.py             # [手腳] 負責執行遊戲與捕捉錯誤
 │   └──  fuzz_tester.py          # [偵錯] 隨機生成模擬按鈕
-|   └──  update_catalog.py       # 更新目錄表
-|   └──  catalog.json            # RAG modules 目錄
+|   └──  debug_launcher.py       # 跳過遊戲選單直接進入遊戲
+|   
 │
 ├── 📂 reference_modules/      # [參考資料] RAG 的參考檔案庫
 │   ├── camera_box.py          # 攝影機範例
