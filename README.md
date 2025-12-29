@@ -13,9 +13,11 @@ Project/
 |   ├── __init__.py            # Python 套件識別檔
 │   └── core.py                # 負責搜尋與篩選模組的主要程式
 |
-├── 📂 rag_system/             # [核心邏輯] RAG 檢索系統 (我寫的)
-│   ├── 🐍 executor.py             # [手腳] 負責執行遊戲與捕捉錯誤
-│   └── 🐍 fuzz_tester.py          # [偵錯] 隨機生成模擬按鈕
+├── 📂 rag_system/               # [核心邏輯] RAG 檢索系統 (我寫的)
+│   ├──  executor.py             # [手腳] 負責執行遊戲與捕捉錯誤
+│   └──  fuzz_tester.py          # [偵錯] 隨機生成模擬按鈕
+|   └──  update_catalog.py       # 更新目錄表
+|   └──  catalog.json            # RAG modules 目錄
 │
 ├── 📂 reference_modules/      # [參考資料] RAG 的參考檔案庫
 │   ├── camera_box.py          # 攝影機範例
@@ -30,9 +32,9 @@ Project/
 ├── 📄 .gitignore              # Git 忽略清單
 ├── 📄 README.md               # 專案說明文件
 │
-├── 🐍 game_creator.py         # [主程式] 專案入口點 (由此啟動)
-├── 🐍 llm_agent.py            # [大腦] 負責 AI 思考、生成企劃與程式碼
-├── 🐍 config.py               # [設定] 全域參數配置
-├── 🐍 utils.py                # [工具] 通用的小工具函式
-└── 🐍 build_db.py             # [建置] 將參考檔案寫入資料庫的腳本
+├──  game_creator.py         # [主程式] 專案入口點 (由此啟動)
+├──  llm_agent.py            # [大腦] 負責 AI 思考、生成企劃與程式碼
+├──  config.py               # [設定] 全域參數配置
+├──  utils.py                # [工具] 通用的小工具函式
+└──  build_db.py             # [建置] 將參考檔案寫入資料庫的腳本
 ```
