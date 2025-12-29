@@ -4,6 +4,7 @@ Reference_modules裡存放的是給RAG搜索的檔案 可自行增加、刪減
 chroma_db是向量庫 執行build_db.py後就能夠產生了
 
 # 📂 檔案結構樹 (Project Tree)
+```mermaid
 graph TD
     %% 定義樣式類別
     classDef logic fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
