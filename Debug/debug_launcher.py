@@ -1,20 +1,14 @@
 import sys
 import os
 
-# ==========================================
-# 🛑 智慧路徑修復區 (Smart Path Fixing)
-# ==========================================
-
-# 1. 抓出目前腳本所在位置
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
 
-# 2. 智慧偵測：dest 資料夾到底在哪裡？
+
 # 策略 A：假設我現在就在根目錄 (Fuzzer 執行時的情況)
 path_strategy_a = os.path.join(current_script_dir, "dest")
 
 # 策略 B：假設我現在在 Debug 子資料夾 (手動執行時的情況)
 path_strategy_b = os.path.join(os.path.dirname(current_script_dir), "dest")
-
 dest_folder_path = None
 
 if os.path.exists(path_strategy_a):
@@ -33,11 +27,7 @@ else:
     print("="*40)
     sys.exit(1) # 回傳錯誤碼 1
 
-# ==========================================
-# 🚀 匯入與啟動
-# ==========================================
-
-# 3. 把 dest 加入搜尋路徑
+# 把 dest 加入搜尋路徑
 if dest_folder_path not in sys.path:
     sys.path.append(dest_folder_path)
 
@@ -50,7 +40,6 @@ except ImportError as e:
 class AutoStartGame(Game):
     def __init__(self):
         super().__init__()
-        # print("🚀 [TEST MODE] 強制跳過選單...") # 註解掉避免干擾 Fuzzer 輸出
         self.game_active = True 
         self.paused = False
         if hasattr(self, 'show_menu'):
