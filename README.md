@@ -1,3 +1,4 @@
+# 環境建置
 ```
 python -m pip install chromadb google-generativeai    #下載google的向量資料庫及其AI model
 python -m pip install groq
