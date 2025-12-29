@@ -128,11 +128,27 @@ def generate_py(user_prompt) -> str:
     system_instruction_designer = (
         "你是一個資深的 Python 遊戲架構師。"
         "你的任務是根據企劃書，撰寫一個單一檔案的 Pygame 遊戲。"
+        
         "【RAG 強制規範 - 絕對遵守】"
         f"我已讀取了內部的參考模組，內容如下：\n{rag_context}\n"
         "1. **你必須直接將上述參考模組的 Class (如 ObjectPool, GameSprite) 包含在你的最終程式碼中**。"
         "2. 嚴禁修改這些參考模組的核心邏輯。"
         "3. 在實作遊戲邏輯時，必須繼承或呼叫這些模組。"
+        
+        "【字體規範 (Font Handling) - 必須遵守】"
+        "Pygame 預設字體不支援中文，為了解決中文亂碼(豆腐塊)問題，你必須在程式碼中包含以下字體設定邏輯："
+        "1. 使用 `pygame.font.match_font('microsoftjhenghei')` (微軟正黑體) 或 `simhei` 作為首選。"
+        "2. 範例程式碼："
+        "   ```python"
+        "   def get_font(size):"
+        "       font_name = pygame.font.match_font('microsoftjhenghei')"
+        "       if not font_name:"
+        "           font_name = pygame.font.match_font('simhei') # fallback"
+        "       # 如果還是找不到，才用 None (但會亂碼)"
+        "       return pygame.font.Font(font_name, size)"
+        "   ```"
+        "3. 所有顯示文字的地方 (`render`)，都必須使用這個 `get_font` 函式取得的字體物件。"
+        
         "【一般規範】"
         "1. 完整的單一檔案，包含 `import pygame`。"
         "2. 使用 `pygame.math.Vector2` 處理座標。"

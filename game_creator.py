@@ -1,8 +1,8 @@
 # game_creator.py 
 import sys
 from llm_agent import complete_prompt, generate_py
-from executor import compile_and_debug, error_solving
-
+import Debug.fuzz_tester as fuzz_tester
+from Debug.executor import compile_and_debug, error_solving
 def generate_whole(user_prompt: str):
     # 1. 優化提示詞
     user_prompt = complete_prompt(user_prompt)
@@ -18,16 +18,25 @@ def generate_whole(user_prompt: str):
     while debug_times > 0:
         debug_times -= 1
         
-        # 嘗試編譯執行
-        debug_result = compile_and_debug(filepath)
+        print(f"\n--- 進入第 {3 - debug_times} 輪測試 ---")
+
+        # [階段一] 基本執行測試 (Executor)
+        exec_result = compile_and_debug(filepath)
         
-        if debug_result["state"]:
-            print("🎉 遊戲可正確執行！")
+        if not exec_result["state"]:
+            print(f"🔧 [Executor] 執行失敗，正在修復...")
+            code_content = error_solving(exec_result["Text"], code_content)
+            continue
+
+        # [階段二] Fuzz 壓力測試 (Fuzz Tester)
+        fuzz_result = fuzz_tester.run_fuzz_test(filepath)
+
+        if fuzz_result["state"]:
+            print("🎉 恭喜！遊戲通過所有測試 ！")
             break
         else:
-            print(f"🔧 偵測到錯誤，進行第 {3 - debug_times} 次自動修復...")
-            # AI 修復程式碼
-            code_content = error_solving(debug_result["Text"], code_content)
+            print(f"🔧 [Fuzzer] 測試失敗，正在修復邏輯錯誤...")
+            code_content = error_solving(fuzz_result["Text"], code_content)
             
     if debug_times == 0:
         print("⚠️ 非常抱歉，自動修復次數耗盡，請檢查 dest/generated_app.py 進行手動調整。")
