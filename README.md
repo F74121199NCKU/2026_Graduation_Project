@@ -16,8 +16,8 @@ Project/
 |   └── catalog.json           # JSON格式檔
 |
 ├── 📂 Debug/                   # 負責對生成出來的遊戲debug
-│   ├──  executor.py             # [手腳] 負責執行遊戲與捕捉錯誤
-│   └──  fuzz_tester.py          # [偵錯] 隨機生成模擬按鈕
+│   ├──  executor.py             # 負責執行遊戲與捕捉錯誤
+│   └──  fuzz_tester.py          # 隨機生成模擬按鈕
 |   └──  debug_launcher.py       # 跳過遊戲選單直接進入遊戲
 |   
 │

@@ -173,6 +173,11 @@ def generate_py(user_prompt) -> str:
         "       return pygame.font.Font(font_name, size)"
         "   ```"
         "3. 所有顯示文字的地方 (`render`)，都必須使用這個 `get_font` 函式取得的字體物件。"
+        "4. **遊戲狀態管理 (Game State Standard)**:"
+        "   - 必須使用 `self.game_active` (布林值) 來控制遊戲是否正在進行。"
+        "   - 預設 `self.game_active = False` (代表在選單中)。"
+        "   - 當玩家點擊開始或按鍵後，將 `self.game_active` 設為 `True`。"
+        "   - 只有當 `self.game_active` 為 True 時，才執行遊戲邏輯與繪製遊戲畫面；否則繪製選單。"
         
         "【一般規範】"
         "1. 完整的單一檔案，包含 `import pygame`。"
