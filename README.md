@@ -1,3 +1,5 @@
+目前約1300行
+
 # 環境建置
 ```
 python -m pip install chromadb google-generativeai    #下載google的向量資料庫及其AI model
@@ -39,6 +41,6 @@ Project/
 ├──  game_creator.py         # [主程式] 專案入口點 (由此啟動)
 ├──  llm_agent.py            # [大腦] 負責 AI 思考、生成企劃與程式碼
 ├──  config.py               # [設定] 全域參數配置
-├──  utils.py                # [工具] 通用的小工具函式
+├──  tools.py                # [工具] 通用的小工具函式
 └──  build_db.py             # [建置] 將參考檔案寫入資料庫的腳本
 ```
